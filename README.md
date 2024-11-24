@@ -29,7 +29,7 @@ put its `bin` directory in the system PATH.
 ## 🚀 Installation
 
 The executables can be downloaded from the latest releases on the GitHub
-(https://github.com/btschwertfeger/ytdownload-app/releases) or
+(https://github.com/btschwertfeger/ytdownloader/releases) or
 via local installation:
 
 ```bash
