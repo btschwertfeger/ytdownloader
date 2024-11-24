@@ -1,0 +1,54 @@
+# -*- coding: utf-8 -*-
+# Copyright (C) 2023 Benjamin Thomas Schwertfeger
+# GitHub: https://github.com/btschwertfeger
+#
+
+name: Test
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  Test:
+    name: Test ubuntu-latest ${{ inputs.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        with:
+          disable-sudo: true
+          egress-policy: block
+          allowed-endpoints: >
+            files.pythonhosted.org:443
+            github.com:443
+            pypi.org:443
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Update Pip
+        run: python -m pip install --user --upgrade pip
+
+      - name: Install package
+        run: python -m pip install --user ".[test]"
+
+      - name: Install dependencies
+        run: sudo apt install -y ffmpeg libegl1 xvfb libxcb-xinerama0
+
+      - name: Run tests
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -m pytest tests/

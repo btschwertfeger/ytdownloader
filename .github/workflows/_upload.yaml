@@ -1,0 +1,56 @@
+# -*- coding: utf-8 -*-
+# Copyright (C) 2023 Benjamin Thomas Schwertfeger
+# GitHub: https://github.com/btschwertfeger
+#
+
+name: Upload Release Artifacts
+
+on:
+  workflow_call:
+
+jobs:
+  upload-release-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Ubuntu artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ubuntu-build-artifacts
+          path: dist/
+
+      - name: Zip Ubuntu artifacts
+        run: |
+          chmod +x dist/ytdownloader/ytdownloader
+          tar -czvf ubuntu-build-${{ github.ref_name }}.tar.gz dist/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: windows-build-artifacts
+          path: dist/
+
+      - name: Zip Windows artifacts
+        run: 7z a windows-build-${{ github.ref_name }}.7z dist/
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: macos-arm-build-artifacts
+          path: dist/
+
+      - name: Zip macOS artifacts
+        run: |
+          chmod +x dist/ytdownloader/ytdownloader
+          tar -czvf macos-arm-build-${{ github.ref_name }}.tar.gz dist/
+
+      - name: Upload Artifacts to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ubuntu-build-${{ github.ref_name }}.tar.gz
+            windows-build-${{ github.ref_name }}.7z
+            macos-arm-build-${{ github.ref_name }}.tar.gz

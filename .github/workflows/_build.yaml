@@ -1,0 +1,144 @@
+# -*- coding: utf-8 -*-
+# Copyright (C) 2023 Benjamin Thomas Schwertfeger
+# GitHub: https://github.com/btschwertfeger
+#
+
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        required: true
+      python-version:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  Build:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        with:
+          disable-sudo: true
+          egress-policy: block
+          allowed-endpoints: >
+            files.pythonhosted.org:443
+            github.com:443
+            pypi.org:443
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # IMPORTANT: otherwise the current tag does not get fetched and the build version gets worse
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Check git status (not Windows)
+        if: runner.os != 'Windows'
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes found."
+          else
+            echo "Changes detected. Please commit or discard changes before publishing."
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: Check git status (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if (-not (git status --porcelain)) {
+              Write-Output "No changes found."
+          } else {
+              Write-Output "Changes detected. Please commit or discard changes before publishing."
+              git status --porcelain
+              exit 1
+          }
+
+      # ======================== Build the project =============================
+      - name: Build Linux
+        if: runner.os == 'linux'
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv build .
+          uv pip install pyinstaller -e .
+          pyinstaller --name ytdownloader \
+            --clean -y \
+            --paths=src \
+            src/ytdownloader/app.py
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv build .
+          uv pip install pyinstaller -e .
+          pyinstaller --name ytdownloader \
+            --clean -y \
+            --paths=src \
+            src/ytdownloader/app.py
+
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: |
+          uv venv
+          .venv\Scripts\Activate.ps1
+          uv build .
+          uv pip install pyinstaller -e .
+          pyinstaller --name ytdownloader `
+            --clean -y `
+            --paths=src `
+            src/ytdownloader/app.py
+
+      # ======================== Check the project =============================
+      - name: Install the package on Linux or MacOS
+        if: runner.os != 'Windows'
+        run: uv tool install dist/*.whl
+
+      - name: Install the package on Windows
+        if: runner.os == 'Windows'
+        run: |
+          try {
+              $WHEEL = Get-ChildItem -Path ./dist -Filter "ytdownloader*.whl" -ErrorAction Stop
+              uv tool install $WHEEL
+          } catch {
+              Write-Error "Error: .whl file not found in the current directory."
+              exit 1
+          }
+
+      # ======================== Upload the artifacts ==========================
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: runner.os == 'linux' && inputs.python-version == '3.11'
+        with:
+          name: ubuntu-build-artifacts
+          path: dist/
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: runner.os == 'macOS' && inputs.python-version == '3.11'
+        with:
+          name: macos-arm-build-artifacts
+          path: dist/
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: runner.os == 'windows' && inputs.python-version == '3.11'
+        with:
+          name: windows-build-artifacts
+          path: dist/
