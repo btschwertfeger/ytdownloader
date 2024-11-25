@@ -4,7 +4,9 @@
 #
 
 from pathlib import Path
+import tempfile
 from typing import Any
+import uuid
 
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
@@ -40,12 +42,16 @@ class DownloaderThread(QThread):
         self.folder = folder
         self.mode = mode
         self.item = item
+        self.temp_dir = Path(tempfile.gettempdir()) / f"yt_dlp_{uuid.uuid4()}"
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self: "DownloaderThread") -> None:
         """Download the video or audio"""
         try:
             ydl_opts: dict[str, Any] = {
                 "outtmpl": str(Path(self.folder) / "%(title)s.%(ext)s"),
+                "cachedir": str(self.temp_dir / "cache"),
+                "paths": {"temp": str(self.temp_dir / "temp")},
             }
             if self.mode == "audio":  # noqa: PLR2004
                 ydl_opts.update(
@@ -71,6 +77,9 @@ class DownloaderThread(QThread):
             self.completed.emit(self.item)
         except Exception as e:  # noqa: BLE001
             self.progress.emit(f"Error: {e!s}", self.item)
+        finally:
+            import shutil
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
 
 
 class YouTubeDownloaderApp(QMainWindow):
